@@ -72,12 +72,21 @@ pub fn show_main_window(app: &Application) {
     let overlay = overlay.clone();
     let sidebar_for_dialog = sidebar.clone();
     new_chat_btn.connect_clicked(move |_| {
-            let dialog = gtk4::Dialog::builder().title("Start New Chat").transient_for(&window).modal(true).build();
+            let dialog = gtk4::Window::builder()
+                .title("Start New Chat")
+                .transient_for(&window)
+                .modal(true)
+                .resizable(false)
+                .default_width(400)
+                .build();
+
+            let main_box = gtk4::Box::new(gtk4::Orientation::Vertical, 0);
+            
             let content = gtk4::Box::new(gtk4::Orientation::Vertical, 12);
-            content.set_margin_top(12);
+            content.set_margin_top(24);
             content.set_margin_bottom(12);
-            content.set_margin_start(12);
-            content.set_margin_end(12);
+            content.set_margin_start(24);
+            content.set_margin_end(24);
 
             let info = gtk4::Label::new(Some("Type a phone number or email, or choose a contact:"));
             info.set_halign(gtk4::Align::Start);
@@ -93,11 +102,30 @@ pub fn show_main_window(app: &Application) {
             dropdown.set_enable_search(true);
             content.append(&dropdown);
 
-            dialog.set_child(Some(&content));
-            let _ = dialog.add_button("Cancel", gtk4::ResponseType::Cancel);
-            let ok_btn = dialog.add_button("Start", gtk4::ResponseType::Ok);
-            ok_btn.add_css_class("suggested-action");
-            dialog.set_default_response(gtk4::ResponseType::Ok);
+            // Button area
+            let button_box = gtk4::Box::new(gtk4::Orientation::Horizontal, 6);
+            button_box.set_halign(gtk4::Align::End);
+            button_box.set_margin_top(12);
+            button_box.set_margin_bottom(12);
+            button_box.set_margin_start(24);
+            button_box.set_margin_end(24);
+
+            let cancel_btn = gtk4::Button::with_label("Cancel");
+            let start_btn = gtk4::Button::with_label("Start");
+            start_btn.add_css_class("suggested-action");
+
+            button_box.append(&cancel_btn);
+            button_box.append(&start_btn);
+
+            main_box.append(&content);
+            main_box.append(&button_box);
+            dialog.set_child(Some(&main_box));
+
+            // Cancel button action
+            let dialog_cancel = dialog.clone();
+            cancel_btn.connect_clicked(move |_| {
+                dialog_cancel.close();
+            });
 
             let state = crate::app::AppState::load();
             if !state.base_url.is_empty() && !state.password.is_empty() {
@@ -117,58 +145,58 @@ pub fn show_main_window(app: &Application) {
 
             let overlay2 = overlay.clone();
             let sidebar_for_response = sidebar_for_dialog.clone();
-            dialog.connect_response(move |dlg, resp| {
-                if resp == gtk4::ResponseType::Ok {
-                    let mut addr = entry.text().to_string();
-                    if addr.trim().is_empty() {
-                        if let Some(model) = dropdown.model() {
-                            let pos = dropdown.selected();
-                            if let Some(item) = model.item(pos) {
-                                    if let Ok(str_item) = item.downcast::<gtk4::StringObject>() {
-                                        addr = str_item.string().to_string();
-                                        if let Some(start) = addr.rfind('(') { if let Some(end) = addr.rfind(')') { if end > start { addr = addr[start+1..end].to_string(); }}}
-                                    }
-                                }
-                        }
-                    }
-                    let addr = addr.trim().to_string();
-                    if addr.is_empty() {
-                        overlay2.add_toast(adw::Toast::new("Please enter a number/email or select a contact."));
-                        return;
-                    }
-
-                    let state = crate::app::AppState::load();
-                    if state.base_url.is_empty() || state.password.is_empty() { return; }
-                    let overlay3 = overlay2.clone();
-                    let sidebar_for_update = sidebar_for_response.clone();
-                    let rx = crate::utils::run_async_to_main(async move {
-                        let client = crate::api::client::ApiClient::new();
-                        match client.create_chat(&state.base_url, &state.password, vec![addr], None).await {
-                            Ok(conv) => {
-                                let _ = crate::storage::upsert_chats(&[conv.clone()], None);
-                                Ok(conv)
-                            }
-                            Err(e) => Err(e),
-                        }
-                    });
-
-                    rx.attach(None, move |res| {
-                        match res {
-                            Ok(conv) => {
-                                if let Ok(list) = crate::storage::get_chats(Some(200)) {
-                                    sidebar_for_update.set_items(list);
-                                } else {
-                                    sidebar_for_update.set_items(vec![conv]);
+            let dialog_start = dialog.clone();
+            start_btn.connect_clicked(move |_| {
+                let mut addr = entry.text().to_string();
+                if addr.trim().is_empty() {
+                    if let Some(model) = dropdown.model() {
+                        let pos = dropdown.selected();
+                        if let Some(item) = model.item(pos) {
+                                if let Ok(str_item) = item.downcast::<gtk4::StringObject>() {
+                                    addr = str_item.string().to_string();
+                                    if let Some(start) = addr.rfind('(') { if let Some(end) = addr.rfind(')') { if end > start { addr = addr[start+1..end].to_string(); }}}
                                 }
                             }
-                            Err(err) => {
-                                overlay3.add_toast(adw::Toast::new(&format!("Failed to create chat: {}", err)));
-                            }
-                        }
-                        glib::ControlFlow::Continue
-                    });
+                    }
                 }
-                dlg.close();
+                let addr = addr.trim().to_string();
+                if addr.is_empty() {
+                    overlay2.add_toast(adw::Toast::new("Please enter a number/email or select a contact."));
+                    return;
+                }
+
+                let state = crate::app::AppState::load();
+                if state.base_url.is_empty() || state.password.is_empty() { return; }
+                let overlay3 = overlay2.clone();
+                let sidebar_for_update = sidebar_for_response.clone();
+                let rx = crate::utils::run_async_to_main(async move {
+                    let client = crate::api::client::ApiClient::new();
+                    match client.create_chat(&state.base_url, &state.password, vec![addr], None).await {
+                        Ok(conv) => {
+                            let _ = crate::storage::upsert_chats(&[conv.clone()], None);
+                            Ok(conv)
+                        }
+                        Err(e) => Err(e),
+                    }
+                });
+
+                rx.attach(None, move |res| {
+                    match res {
+                        Ok(conv) => {
+                            if let Ok(list) = crate::storage::get_chats(Some(200)) {
+                                sidebar_for_update.set_items(list);
+                            } else {
+                                sidebar_for_update.set_items(vec![conv]);
+                            }
+                        }
+                        Err(err) => {
+                            overlay3.add_toast(adw::Toast::new(&format!("Failed to create chat: {}", err)));
+                        }
+                    }
+                    glib::ControlFlow::Continue
+                });
+                
+                dialog_start.close();
             });
 
             dialog.present();
