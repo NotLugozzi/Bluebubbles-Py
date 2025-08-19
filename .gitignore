@@ -201,3 +201,23 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# Application specific
+*.db
+*.sqlite
+*.sqlite3
+bluebubbles.db
+
+# Package building
+deb_dist/
+bluebubbles-client-*/
+*.deb
+*.rpm
+*.tar.gz
+*.flatpak
+rpmbuild/
+
+# Flatpak
+.flatpak-builder/
+build-dir/
+export/

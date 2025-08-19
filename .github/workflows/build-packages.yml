@@ -1,0 +1,436 @@
+name: Build Packages
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run nightly builds at 2 AM UTC
+    - cron: '0 2 * * *'
+  workflow_dispatch:
+
+jobs:
+  build-deb:
+    runs-on: ubuntu-latest
+    name: Build DEB Package
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          python3-gi \
+          python3-gi-cairo \
+          gir1.2-gtk-4.0 \
+          gir1.2-adw-1 \
+          debhelper \
+          dh-python \
+          python3-setuptools \
+          python3-wheel \
+          python3-stdeb \
+          fakeroot
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install stdeb
+    
+    - name: Create DEB package
+      run: |
+        # Set version with timestamp for nightly builds
+        if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          VERSION="1.0.0-nightly.$(date +%Y%m%d.%H%M%S)"
+        else
+          VERSION="1.0.0-dev.$(date +%Y%m%d.%H%M%S)"
+        fi
+        
+        # Update version in setup.py
+        sed -i "s/version='1.0.0'/version='$VERSION'/" setup.py
+        
+        # Build source distribution
+        python setup.py sdist
+        
+        # Build DEB package
+        python setup.py --command-packages=stdeb.command bdist_deb
+        
+        # Copy DEB file to artifacts
+        mkdir -p artifacts
+        cp deb_dist/*.deb artifacts/
+        
+        # Rename for clarity
+        cd artifacts
+        for file in *.deb; do
+          mv "$file" "bluebubbles-client_${VERSION}_all.deb"
+        done
+    
+    - name: Upload DEB artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: deb-package
+        path: artifacts/*.deb
+
+  build-rpm:
+    runs-on: ubuntu-latest
+    name: Build RPM Package
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          python3-gi \
+          python3-gi-cairo \
+          gir1.2-gtk-4.0 \
+          gir1.2-adw-1 \
+          rpm \
+          python3-setuptools \
+          python3-wheel
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install setuptools wheel
+    
+    - name: Create RPM package
+      run: |
+        # Set version with timestamp for nightly builds
+        if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          VERSION="1.0.0-nightly.$(date +%Y%m%d.%H%M%S)"
+        else
+          VERSION="1.0.0-dev.$(date +%Y%m%d.%H%M%S)"
+        fi
+        
+        # Update version in setup.py
+        sed -i "s/version='1.0.0'/version='$VERSION'/" setup.py
+        
+        # Create spec file
+        cat > bluebubbles-client.spec << 'EOF'
+        %define name bluebubbles-client
+        %define version VERSION_PLACEHOLDER
+        %define release 1
+        
+        Summary: BlueBubbles GTK4 Client for Linux
+        Name: %{name}
+        Version: %{version}
+        Release: %{release}
+        License: MIT
+        Group: Applications/Internet
+        Source0: %{name}-%{version}.tar.gz
+        BuildRoot: %{_tmppath}/%{name}-%{version}-%{release}-buildroot
+        Prefix: %{_prefix}
+        BuildArch: noarch
+        Vendor: NotLugozzi
+        Url: https://github.com/NotLugozzi/Bluebubbles-Py
+        
+        Requires: python3
+        Requires: python3-gobject
+        Requires: gtk4
+        Requires: libadwaita
+        
+        %description
+        BlueBubbles is a cross-platform ecosystem of apps aimed to bring iMessage to Android, Windows, Linux, and Web!
+        This is the Linux GTK4 client that allows you to connect to your BlueBubbles server and send/receive iMessages.
+        
+        %prep
+        %setup -n %{name}-%{version}
+        
+        %build
+        python3 setup.py build
+        
+        %install
+        python3 setup.py install --root=$RPM_BUILD_ROOT
+        
+        %files
+        %defattr(-,root,root)
+        %{_bindir}/bluebubbles
+        %{_prefix}/lib/python*/site-packages/*
+        %{_datadir}/applications/com.github.bluebubbles.client.desktop
+        %{_datadir}/metainfo/com.github.bluebubbles.client.metainfo.xml
+        
+        %changelog
+        * $(date +'%a %b %d %Y') Builder <builder@example.com> - %{version}-%{release}
+        - Automated build
+        EOF
+        
+        # Replace version placeholder
+        sed -i "s/VERSION_PLACEHOLDER/$VERSION/" bluebubbles-client.spec
+        
+        # Build source distribution
+        python setup.py sdist
+        
+        # Copy source to rpmbuild
+        mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+        cp dist/*.tar.gz ~/rpmbuild/SOURCES/
+        cp bluebubbles-client.spec ~/rpmbuild/SPECS/
+        
+        # Build RPM
+        rpmbuild -ba ~/rpmbuild/SPECS/bluebubbles-client.spec
+        
+        # Copy RPM files to artifacts
+        mkdir -p artifacts
+        cp ~/rpmbuild/RPMS/noarch/*.rpm artifacts/ || true
+        cp ~/rpmbuild/SRPMS/*.rpm artifacts/ || true
+    
+    - name: Upload RPM artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: rpm-package
+        path: artifacts/*.rpm
+
+  build-tar:
+    runs-on: ubuntu-latest
+    name: Build TAR Package
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y \
+          python3-gi \
+          python3-gi-cairo \
+          gir1.2-gtk-4.0 \
+          gir1.2-adw-1
+    
+    - name: Install Python dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install setuptools wheel
+    
+    - name: Create TAR package
+      run: |
+        # Set version with timestamp for nightly builds
+        if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          VERSION="1.0.0-nightly.$(date +%Y%m%d.%H%M%S)"
+        else
+          VERSION="1.0.0-dev.$(date +%Y%m%d.%H%M%S)"
+        fi
+        
+        # Update version in setup.py
+        sed -i "s/version='1.0.0'/version='$VERSION'/" setup.py
+        
+        # Build source distribution
+        python setup.py sdist
+        
+        # Create binary distribution
+        mkdir -p bluebubbles-client-$VERSION
+        
+        # Copy application files
+        cp -r src bluebubbles-client-$VERSION/
+        cp main.py bluebubbles-client-$VERSION/
+        cp requirements.txt bluebubbles-client-$VERSION/
+        cp README.md bluebubbles-client-$VERSION/
+        cp *.desktop bluebubbles-client-$VERSION/
+        cp *.metainfo.xml bluebubbles-client-$VERSION/
+        
+        # Create install script
+        cat > bluebubbles-client-$VERSION/install.sh << 'EOF'
+        #!/bin/bash
+        set -e
+        
+        PREFIX=${PREFIX:-/usr/local}
+        
+        echo "Installing BlueBubbles Client to $PREFIX"
+        
+        # Install Python files
+        mkdir -p $PREFIX/lib/bluebubbles-client
+        cp -r src $PREFIX/lib/bluebubbles-client/
+        cp main.py $PREFIX/lib/bluebubbles-client/
+        
+        # Create launcher script
+        mkdir -p $PREFIX/bin
+        cat > $PREFIX/bin/bluebubbles << 'LAUNCHER_EOF'
+        #!/bin/bash
+        cd /usr/local/lib/bluebubbles-client
+        python3 main.py "$@"
+        LAUNCHER_EOF
+        chmod +x $PREFIX/bin/bluebubbles
+        
+        # Install desktop file
+        mkdir -p $PREFIX/share/applications
+        cp com.github.bluebubbles.client.desktop $PREFIX/share/applications/
+        
+        # Install metainfo
+        mkdir -p $PREFIX/share/metainfo
+        cp com.github.bluebubbles.client.metainfo.xml $PREFIX/share/metainfo/
+        
+        echo "Installation complete!"
+        echo "You can now run 'bluebubbles' or find it in your applications menu."
+        EOF
+        
+        chmod +x bluebubbles-client-$VERSION/install.sh
+        
+        # Create uninstall script
+        cat > bluebubbles-client-$VERSION/uninstall.sh << 'EOF'
+        #!/bin/bash
+        set -e
+        
+        PREFIX=${PREFIX:-/usr/local}
+        
+        echo "Uninstalling BlueBubbles Client from $PREFIX"
+        
+        rm -rf $PREFIX/lib/bluebubbles-client
+        rm -f $PREFIX/bin/bluebubbles
+        rm -f $PREFIX/share/applications/com.github.bluebubbles.client.desktop
+        rm -f $PREFIX/share/metainfo/com.github.bluebubbles.client.metainfo.xml
+        
+        echo "Uninstallation complete!"
+        EOF
+        
+        chmod +x bluebubbles-client-$VERSION/uninstall.sh
+        
+        # Create README for the package
+        cat > bluebubbles-client-$VERSION/INSTALL.md << 'EOF'
+        # BlueBubbles Client Installation
+        
+        ## Requirements
+        
+        - Python 3.8 or higher
+        - GTK4
+        - Libadwaita
+        - Python GObject bindings
+        
+        ### Ubuntu/Debian
+        ```bash
+        sudo apt install python3 python3-gi python3-gi-cairo gir1.2-gtk-4.0 gir1.2-adw-1
+        pip3 install -r requirements.txt
+        ```
+        
+        ### Fedora/RHEL
+        ```bash
+        sudo dnf install python3 python3-gobject python3-cairo gtk4-devel libadwaita-devel
+        pip3 install -r requirements.txt
+        ```
+        
+        ### Arch Linux
+        ```bash
+        sudo pacman -S python python-gobject python-cairo gtk4 libadwaita
+        pip3 install -r requirements.txt
+        ```
+        
+        ## Installation
+        
+        1. Install system dependencies (see above)
+        2. Install Python dependencies:
+           ```bash
+           pip3 install -r requirements.txt
+           ```
+        3. Run the install script:
+           ```bash
+           sudo ./install.sh
+           ```
+        
+        ## Uninstallation
+        
+        Run the uninstall script:
+        ```bash
+        sudo ./uninstall.sh
+        ```
+        
+        ## Manual Installation
+        
+        You can also run the application directly without installing:
+        ```bash
+        python3 main.py
+        ```
+        EOF
+        
+        # Create tar.gz
+        tar -czf bluebubbles-client-$VERSION.tar.gz bluebubbles-client-$VERSION
+        
+        # Copy to artifacts
+        mkdir -p artifacts
+        cp *.tar.gz artifacts/
+        cp dist/*.tar.gz artifacts/bluebubbles-client-$VERSION-source.tar.gz
+    
+    - name: Upload TAR artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: tar-package
+        path: artifacts/*.tar.gz
+
+  release:
+    needs: [build-deb, build-rpm, build-tar]
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    name: Create Nightly Release
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+    
+    - name: Create Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: nightly-${{ github.run_number }}
+        release_name: Nightly Build ${{ github.run_number }}
+        body: |
+          Automated nightly build of BlueBubbles Client
+          
+          **Installation:**
+          - **DEB (Ubuntu/Debian)**: Download the `.deb` file and install with `sudo dpkg -i *.deb`
+          - **RPM (Fedora/RHEL)**: Download the `.rpm` file and install with `sudo rpm -i *.rpm`
+          - **TAR (Any Linux)**: Download the `.tar.gz` file, extract and run `sudo ./install.sh`
+          
+          **Note**: This is a nightly build and may contain experimental features or bugs.
+        draft: false
+        prerelease: true
+    
+    - name: Upload DEB Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: deb-package/bluebubbles-client_*_all.deb
+        asset_name: bluebubbles-client-nightly.deb
+        asset_content_type: application/vnd.debian.binary-package
+    
+    - name: Upload RPM Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: rpm-package/*.rpm
+        asset_name: bluebubbles-client-nightly.rpm
+        asset_content_type: application/x-rpm
+    
+    - name: Upload TAR Release Asset
+      uses: actions/upload-release-asset@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        upload_url: ${{ steps.create_release.outputs.upload_url }}
+        asset_path: tar-package/bluebubbles-client-*.tar.gz
+        asset_name: bluebubbles-client-nightly.tar.gz
+        asset_content_type: application/gzip
