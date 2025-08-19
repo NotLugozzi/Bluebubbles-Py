@@ -1,0 +1,13 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=BlueBubbles
+GenericName=iMessage Client
+Comment=Connect to your BlueBubbles server and send iMessages
+Icon=com.github.bluebubbles.client
+Exec=bluebubbles
+Categories=Network;InstantMessaging;GTK;
+StartupNotify=true
+Terminal=false
+StartupWMClass=com.github.bluebubbles.client
+Keywords=iMessage;Messages;Chat;BlueBubbles;

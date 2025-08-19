@@ -1,0 +1,9 @@
+include README.md
+include LICENSE
+include requirements.txt
+include *.desktop
+include *.metainfo.xml
+recursive-include src *.py
+recursive-include src *.css
+recursive-exclude src __pycache__
+recursive-exclude src *.pyc
