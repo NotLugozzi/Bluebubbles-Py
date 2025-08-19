@@ -185,7 +185,14 @@ class ChatService:
             async with BlueBubblesClient(server_url, password, api_method) as client:
                 result = await client.send_reaction(message_guid, reaction_type, chat_guid)
                 print(f"🎭 Reaction API response: {result}")
-                return True
+            # Proactively sync messages so UI can immediately reflect the reaction badge
+            if chat_guid:
+                try:
+                    await self.sync_chat_messages(server_url, password, chat_guid, limit=50)
+                except Exception as sync_err:
+                    # Non-fatal; background monitor may still pick it up
+                    print(f"⚠️  Failed to sync messages after reaction: {sync_err}")
+            return True
         except Exception as e:
             print(f"❌ Error sending reaction: {e}")
             return False
@@ -199,7 +206,13 @@ class ChatService:
             async with BlueBubblesClient(server_url, password, api_method) as client:
                 result = await client.remove_reaction(message_guid, chat_guid)
                 print(f"🎭 Remove reaction API response: {result}")
-                return True
+            # Proactively sync messages so UI can immediately reflect the removed badge
+            if chat_guid:
+                try:
+                    await self.sync_chat_messages(server_url, password, chat_guid, limit=50)
+                except Exception as sync_err:
+                    print(f"⚠️  Failed to sync messages after removing reaction: {sync_err}")
+            return True
         except Exception as e:
             print(f"❌ Error removing reaction: {e}")
             return False

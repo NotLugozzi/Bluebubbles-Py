@@ -382,14 +382,20 @@ class DatabaseManager:
         """Get reactions for a specific message."""
         conn = self._get_connection()
         
+        # Some servers prefix associated_message_guid (e.g., 'p:0/<guid>').
+        # Match both exact and prefixed forms for robustness.
         cursor = conn.execute("""
         SELECT m.*, h.address as handle_address
         FROM messages m
         LEFT JOIN handles h ON m.handle_id = h.original_rowid
-        WHERE m.associated_message_guid = ? 
+        WHERE (
+            m.associated_message_guid = ?
+            OR m.associated_message_guid = ('p:0/' || ?)
+            OR m.associated_message_guid = ('bp:0/' || ?)
+        )
         AND m.associated_message_type IS NOT NULL
         ORDER BY m.date_created ASC
-        """, (message_guid,))
+        """, (message_guid, message_guid, message_guid))
         
         reactions = []
         for row in cursor.fetchall():

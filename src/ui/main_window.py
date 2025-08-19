@@ -600,17 +600,20 @@ class MainWindow(Adw.ApplicationWindow):
             if child is None:
                 break
             messages_box.remove(child)
-        
-        if not messages:
+
+        # Filter out reaction events; these are represented as badges on the parent message.
+        filtered_messages = [m for m in messages if not self.is_reaction_event(m)]
+
+        if not filtered_messages:
             no_messages_label = Gtk.Label()
             no_messages_label.set_text("No messages in this chat")
             no_messages_label.add_css_class("dim-label")
             messages_box.append(no_messages_label)
             return
-        
+
         # Sort messages by date (newest last for natural reading order)
-        sorted_messages = sorted(messages, key=lambda m: m.date_created)
-        
+        sorted_messages = sorted(filtered_messages, key=lambda m: m.date_created)
+
         for message in sorted_messages:
             message_widget = self.create_message_widget(message)
             # Store the message GUID for future reference
@@ -707,7 +710,16 @@ class MainWindow(Adw.ApplicationWindow):
         reactions = self.chat_service.get_message_reactions(message.guid)
         if reactions:
             reactions_widget = self.create_reactions_widget(reactions, message.is_from_me)
-            message_box.append(reactions_widget)
+        else:
+            # Keep a placeholder to simplify later updates
+            reactions_widget = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+            if message.is_from_me:
+                reactions_widget.set_halign(Gtk.Align.END)
+            else:
+                reactions_widget.set_halign(Gtk.Align.START)
+        # Store a reference so we can update badges later without rebuilding the whole message
+        message_box.reactions_widget = reactions_widget
+        message_box.append(reactions_widget)
         
         # Store message reference for gesture callbacks
         bubble_event_box.message = message
@@ -775,6 +787,13 @@ class MainWindow(Adw.ApplicationWindow):
         if reaction_type:
             return reaction_map.get(reaction_type, "👍")  # Default to thumbs up
         return ""
+
+    def is_reaction_event(self, message) -> bool:
+        """Return True if this message is a reaction event (tapback), not a normal chat message."""
+        try:
+            return bool(message.associated_message_guid and message.associated_message_type)
+        except Exception:
+            return False
     
     def load_server_info(self):
         """Load server information and display in title."""
@@ -823,7 +842,7 @@ class MainWindow(Adw.ApplicationWindow):
             return
         
         try:
-            api_method = self.application.config_manager.get_api_method()
+            api_method = self.get_application().config_manager.get_api_method()
             async with BlueBubblesClient(config['url'], config['password'], api_method) as client:
                 # Fetch all the information
                 server_info = await client.get_server_info()
@@ -963,8 +982,8 @@ class MainWindow(Adw.ApplicationWindow):
             ("👍", "like"),
             ("👎", "dislike"),
             ("😂", "laugh"),
-            ("😮", "emphasis"),
-            ("😢", "question")
+            ("‼️", "emphasis"),
+            ("❓", "question")
         ]
         
         for emoji, reaction_type in reactions:
@@ -1440,7 +1459,7 @@ class MainWindow(Adw.ApplicationWindow):
     async def load_server_info_async(self, url: str, password: str):
         """Load server information asynchronously."""
         try:
-            api_method = self.application.config_manager.get_api_method()
+            api_method = self.get_application().config_manager.get_api_method()
             async with BlueBubblesClient(url, password, api_method) as client:
                 server_info = await client.get_server_info()
                 version = server_info.get('server_version', 'Unknown')
@@ -1595,6 +1614,9 @@ class MainWindow(Adw.ApplicationWindow):
         """Efficiently add new messages to the chat without clearing everything."""
         print(f"🔍 Checking for new messages to add. Total messages from cache: {len(new_messages)}")
         
+    # Ignore reaction-only events; they will be reflected as badges on their parent messages
+        new_messages = [m for m in new_messages if not self.is_reaction_event(m)]
+
         # Get currently displayed messages by checking existing children
         existing_guids = set()
         child_count = 0
@@ -1634,29 +1656,41 @@ class MainWindow(Adw.ApplicationWindow):
                 print(f"➕ Added message widget for: {message.guid}")
         else:
             print("ℹ️  No new messages to add to current chat")
-        
-        # Update the message list
-        message_list = self.content_stack.get_child_by_name("chat_view")
-        if message_list:
-            # Find the scrolled window with the message list
-            scrolled = message_list.get_first_child()
-            if scrolled and isinstance(scrolled, Gtk.ScrolledWindow):
-                list_box = scrolled.get_child()
-                if list_box and isinstance(list_box, Gtk.ListBox):
-                    # Clear existing messages
-                    while True:
-                        row = list_box.get_first_child()
-                        if row is None:
-                            break
-                        list_box.remove(row)
-                    
-                    # Add updated messages
-                    for message in reversed(messages):
-                        message_row = self.create_message_row(message)
-                        list_box.append(message_row)
-                    
-                    # Scroll to bottom
-                    self.scroll_to_bottom(list_box)
+
+        # After adding/confirming messages, update reaction badges for all visible messages
+        # to reflect any recent reaction changes.
+        child = messages_box.get_first_child()
+        while child:
+            try:
+                if hasattr(child, 'message_guid'):
+                    guid = child.message_guid
+                    # Lookup the corresponding message data
+                    msg = next((m for m in new_messages if m.guid == guid), None)
+                    if msg is None:
+                        child = child.get_next_sibling()
+                        continue
+                    # Recalculate reactions for this message
+                    reactions = self.chat_service.get_message_reactions(guid)
+                    # Build the updated reactions widget
+                    if reactions:
+                        updated = self.create_reactions_widget(reactions, msg.is_from_me)
+                    else:
+                        updated = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=0)
+                        if msg.is_from_me:
+                            updated.set_halign(Gtk.Align.END)
+                        else:
+                            updated.set_halign(Gtk.Align.START)
+                    # Replace existing reactions widget if we have a reference
+                    if hasattr(child, 'reactions_widget'):
+                        try:
+                            child.remove(child.reactions_widget)
+                        except Exception:
+                            pass
+                        child.reactions_widget = updated
+                        child.append(updated)
+            except Exception:
+                pass
+            child = child.get_next_sibling()
     
     def on_window_destroy(self, window):
         """Called when the window is being destroyed."""
