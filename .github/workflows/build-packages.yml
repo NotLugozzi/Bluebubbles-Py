@@ -11,73 +11,6 @@ on:
   workflow_dispatch:
 
 jobs:
-  build-deb:
-    runs-on: ubuntu-latest
-    name: Build DEB Package
-    
-    steps:
-    - uses: actions/checkout@v4
-    
-    - name: Set up Python
-      uses: actions/setup-python@v4
-      with:
-        python-version: '3.11'
-    
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y \
-          python3-gi \
-          python3-gi-cairo \
-          gir1.2-gtk-4.0 \
-          gir1.2-adw-1 \
-          debhelper \
-          dh-python \
-          python3-setuptools \
-          python3-wheel \
-          python3-stdeb \
-          fakeroot
-    
-    - name: Install Python dependencies
-      run: |
-        python -m pip install --upgrade pip
-        pip install -r requirements.txt
-        pip install stdeb
-    
-    - name: Create DEB package
-      run: |
-        # Set version with timestamp for nightly builds
-        if [ "${{ github.event_name }}" = "schedule" ] || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-          VERSION="1.0.0-nightly.$(date +%Y%m%d.%H%M%S)"
-        else
-          VERSION="1.0.0-dev.$(date +%Y%m%d.%H%M%S)"
-        fi
-        
-        # Update version in setup.py
-        sed -i "s/version='1.0.0'/version='$VERSION'/" setup.py
-        
-        # Build source distribution
-        python setup.py sdist
-        
-        # Build DEB package
-        python setup.py --command-packages=stdeb.command bdist_deb
-        
-        # Copy DEB file to artifacts
-        mkdir -p artifacts
-        cp deb_dist/*.deb artifacts/
-        
-        # Rename for clarity
-        cd artifacts
-        for file in *.deb; do
-          mv "$file" "bluebubbles-client_${VERSION}_all.deb"
-        done
-    
-    - name: Upload DEB artifact
-      uses: actions/upload-artifact@v3
-      with:
-        name: deb-package
-        path: artifacts/*.deb
-
   build-rpm:
     runs-on: ubuntu-latest
     name: Build RPM Package
@@ -86,9 +19,9 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
+        python-version: '3.12'
     
     - name: Install system dependencies
       run: |
@@ -189,7 +122,7 @@ jobs:
         cp ~/rpmbuild/SRPMS/*.rpm artifacts/ || true
     
     - name: Upload RPM artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: rpm-package
         path: artifacts/*.rpm
@@ -202,9 +135,9 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Set up Python
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
-        python-version: '3.11'
+        python-version: '3.12'
     
     - name: Install system dependencies
       run: |
@@ -368,13 +301,13 @@ jobs:
         cp dist/*.tar.gz artifacts/bluebubbles-client-$VERSION-source.tar.gz
     
     - name: Upload TAR artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: tar-package
         path: artifacts/*.tar.gz
 
   release:
-    needs: [build-deb, build-rpm, build-tar]
+    needs: [build-rpm, build-tar]
     runs-on: ubuntu-latest
     if: github.event_name == 'schedule'
     name: Create Nightly Release
@@ -383,54 +316,26 @@ jobs:
     - uses: actions/checkout@v4
     
     - name: Download all artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
     
     - name: Create Release
       id: create_release
-      uses: actions/create-release@v1
+      uses: softprops/action-gh-release@v2
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       with:
         tag_name: nightly-${{ github.run_number }}
-        release_name: Nightly Build ${{ github.run_number }}
+        name: Nightly Build ${{ github.run_number }}
         body: |
           Automated nightly build of BlueBubbles Client
           
           **Installation:**
-          - **DEB (Ubuntu/Debian)**: Download the `.deb` file and install with `sudo dpkg -i *.deb`
           - **RPM (Fedora/RHEL)**: Download the `.rpm` file and install with `sudo rpm -i *.rpm`
           - **TAR (Any Linux)**: Download the `.tar.gz` file, extract and run `sudo ./install.sh`
           
           **Note**: This is a nightly build and may contain experimental features or bugs.
         draft: false
         prerelease: true
-    
-    - name: Upload DEB Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: deb-package/bluebubbles-client_*_all.deb
-        asset_name: bluebubbles-client-nightly.deb
-        asset_content_type: application/vnd.debian.binary-package
-    
-    - name: Upload RPM Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: rpm-package/*.rpm
-        asset_name: bluebubbles-client-nightly.rpm
-        asset_content_type: application/x-rpm
-    
-    - name: Upload TAR Release Asset
-      uses: actions/upload-release-asset@v1
-      env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      with:
-        upload_url: ${{ steps.create_release.outputs.upload_url }}
-        asset_path: tar-package/bluebubbles-client-*.tar.gz
-        asset_name: bluebubbles-client-nightly.tar.gz
-        asset_content_type: application/gzip
+        files: |
+          rpm-package/*.rpm
+          tar-package/*.tar.gz
