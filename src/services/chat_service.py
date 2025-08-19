@@ -52,11 +52,11 @@ class ChatService:
                 return self.db_manager.get_chats(limit=limit)
                 
         except BlueBubblesAPIError as e:
-            print(f"API Error syncing chats: {e}")
+            # print(f"API Error syncing chats: {e}")
             # Return cached chats if API fails
             return self.db_manager.get_chats(limit=limit)
         except Exception as e:
-            print(f"Unexpected error syncing chats: {e}")
+            # print(f"Unexpected error syncing chats: {e}")
             # Return cached chats if anything fails
             return self.db_manager.get_chats(limit=limit)
     
@@ -91,11 +91,11 @@ class ChatService:
                 return self.db_manager.get_chat_messages(chat_guid, limit=limit)
                 
         except BlueBubblesAPIError as e:
-            print(f"API Error syncing messages for chat {chat_guid}: {e}")
+            # print(f"API Error syncing messages for chat {chat_guid}: {e}")
             # Return cached messages if API fails
             return self.db_manager.get_chat_messages(chat_guid, limit=limit)
         except Exception as e:
-            print(f"Unexpected error syncing messages for chat {chat_guid}: {e}")
+            # print(f"Unexpected error syncing messages for chat {chat_guid}: {e}")
             # Return cached messages if anything fails
             return self.db_manager.get_chat_messages(chat_guid, limit=limit)
     
@@ -145,7 +145,7 @@ class ChatService:
             return self.get_chat_by_guid(chat_guid)
             
         except Exception as e:
-            print(f"Error refreshing chat data for {chat_guid}: {e}")
+            # print(f"Error refreshing chat data for {chat_guid}: {e}")
             return None
     
     async def send_message(self, server_url: str, password: str, 
@@ -159,7 +159,7 @@ class ChatService:
                 await self.sync_chat_messages(server_url, password, chat_guid, limit=10)
                 return True
         except Exception as e:
-            print(f"Error sending message: {e}")
+            # print(f"Error sending message: {e}")
             return False
     
     async def send_attachment(self, server_url: str, password: str, 
@@ -173,7 +173,7 @@ class ChatService:
                 await self.sync_chat_messages(server_url, password, chat_guid, limit=10)
                 return True
         except Exception as e:
-            print(f"Error sending attachment: {e}")
+            # print(f"Error sending attachment: {e}")
             return False
     
     async def send_reaction(self, server_url: str, password: str, 
@@ -181,20 +181,20 @@ class ChatService:
         """Send a reaction to a message."""
         try:
             api_method = self.config_manager.get_api_method()
-            print(f"🎭 Sending reaction: message_guid={message_guid}, reaction_type={reaction_type}, chat_guid={chat_guid}, api_method={api_method}")
+            # print(f"🎭 Sending reaction: message_guid={message_guid}, reaction_type={reaction_type}, chat_guid={chat_guid}, api_method={api_method}")
             async with BlueBubblesClient(server_url, password, api_method) as client:
                 result = await client.send_reaction(message_guid, reaction_type, chat_guid)
-                print(f"🎭 Reaction API response: {result}")
+                # print(f"🎭 Reaction API response: {result}")
             # Proactively sync messages so UI can immediately reflect the reaction badge
             if chat_guid:
                 try:
                     await self.sync_chat_messages(server_url, password, chat_guid, limit=50)
                 except Exception as sync_err:
                     # Non-fatal; background monitor may still pick it up
-                    print(f"⚠️  Failed to sync messages after reaction: {sync_err}")
+                    # print(f"⚠️  Failed to sync messages after reaction: {sync_err}")
             return True
         except Exception as e:
-            print(f"❌ Error sending reaction: {e}")
+            # print(f"❌ Error sending reaction: {e}")
             return False
     
     async def remove_reaction(self, server_url: str, password: str, 
@@ -202,19 +202,19 @@ class ChatService:
         """Remove a reaction from a message."""
         try:
             api_method = self.config_manager.get_api_method()
-            print(f"🎭 Removing reaction: message_guid={message_guid}, chat_guid={chat_guid}, api_method={api_method}")
+            # print(f"🎭 Removing reaction: message_guid={message_guid}, chat_guid={chat_guid}, api_method={api_method}")
             async with BlueBubblesClient(server_url, password, api_method) as client:
                 result = await client.remove_reaction(message_guid, chat_guid)
-                print(f"🎭 Remove reaction API response: {result}")
+                # print(f"🎭 Remove reaction API response: {result}")
             # Proactively sync messages so UI can immediately reflect the removed badge
             if chat_guid:
                 try:
                     await self.sync_chat_messages(server_url, password, chat_guid, limit=50)
                 except Exception as sync_err:
-                    print(f"⚠️  Failed to sync messages after removing reaction: {sync_err}")
+                    # print(f"⚠️  Failed to sync messages after removing reaction: {sync_err}")
             return True
         except Exception as e:
-            print(f"❌ Error removing reaction: {e}")
+            # print(f"❌ Error removing reaction: {e}")
             return False
     
     async def send_typing_indicator(self, server_url: str, password: str, 
@@ -225,7 +225,7 @@ class ChatService:
             async with BlueBubblesClient(server_url, password, api_method) as client:
                 return await client.send_typing_indicator(chat_guid, typing)
         except Exception as e:
-            print(f"Error sending typing indicator: {e}")
+            # print(f"Error sending typing indicator: {e}")
             return False
     
     async def unsend_message(self, server_url: str, password: str, 
@@ -239,7 +239,7 @@ class ChatService:
                 await self.sync_chat_messages(server_url, password, chat_guid, limit=10)
                 return True
         except Exception as e:
-            print(f"Error unsending message: {e}")
+            # print(f"Error unsending message: {e}")
             return False
     
     async def edit_message(self, server_url: str, password: str, 
@@ -253,7 +253,7 @@ class ChatService:
                 await self.sync_chat_messages(server_url, password, chat_guid, limit=10)
                 return True
         except Exception as e:
-            print(f"Error editing message: {e}")
+            # print(f"Error editing message: {e}")
             return False
     
     def add_new_message_callback(self, callback):
@@ -268,11 +268,11 @@ class ChatService:
     def start_message_checking(self, server_url: str, password: str, check_interval: int = 3):
         """Start the background message checking task."""
         if self._message_check_task is not None:
-            print("⚠️  Message checking task is already running")
+            # print("⚠️  Message checking task is already running")
             return
         
         self._stop_message_check = False
-        print(f"🔄 Starting message checking with {check_interval}s interval")
+        # print(f"🔄 Starting message checking with {check_interval}s interval")
         
         async def message_check_loop():
             """Background task to periodically check for new messages."""
@@ -309,7 +309,7 @@ class ChatService:
                                             # Save new message to database
                                             self.db_manager.save_message(msg_data, chat.guid)
                                             new_message_found = True
-                                            print(f"📨 New message detected in chat {chat.display_name or chat.guid[:8]}")
+                                            # print(f"📨 New message detected in chat {chat.display_name or chat.guid[:8]}")
                                     
                                     # Notify callbacks if new messages were found
                                     if new_message_found:
@@ -317,20 +317,20 @@ class ChatService:
                                             try:
                                                 callback(chat.guid)
                                             except Exception as e:
-                                                print(f"❌ Error in message callback: {e}")
+                                                # print(f"❌ Error in message callback: {e}")
                         
                         except Exception as e:
-                            # Don't print errors for individual chats as it can be spammy
+                            # Don't # print errors for individual chats as it can be spammy
                             pass
                     
                     # Wait before next check
                     await asyncio.sleep(check_interval)
                 
                 except Exception as e:
-                    print(f"❌ Error in message checking loop: {e}")
+                    # print(f"❌ Error in message checking loop: {e}")
                     await asyncio.sleep(check_interval)
             
-            print("🛑 Message checking stopped")
+            # print("🛑 Message checking stopped")
         
         # Start the background task by running the async function in a thread
         def run_async_loop():
@@ -339,9 +339,9 @@ class ChatService:
             try:
                 loop.run_until_complete(message_check_loop())
             except asyncio.CancelledError:
-                print("🛑 Message checking task cancelled")
+                # print("🛑 Message checking task cancelled")
             except Exception as e:
-                print(f"❌ Error in message checking thread: {e}")
+                # print(f"❌ Error in message checking thread: {e}")
             finally:
                 loop.close()
         
@@ -353,7 +353,7 @@ class ChatService:
         if self._message_check_task is None and self._message_check_thread is None:
             return
         
-        print("🛑 Stopping message checking...")
+        # print("🛑 Stopping message checking...")
         self._stop_message_check = True
         
         if self._message_check_task and not self._message_check_task.done():

@@ -208,8 +208,8 @@ class BlueBubblesClient:
         
         payload = self._add_api_method_to_payload(payload)
         
-        print(f"🌐 Sending reaction request to /api/v1/message/react")
-        print(f"🌐 Payload: {payload}")
+        # print(f"🌐 Sending reaction request to /api/v1/message/react")
+        # print(f"🌐 Payload: {payload}")
         
         response = await self._make_request(
             'POST',
@@ -217,7 +217,7 @@ class BlueBubblesClient:
             json=payload,
             headers={'Content-Type': 'application/json'}
         )
-        print(f"🌐 Raw response: {response}")
+        # print(f"🌐 Raw response: {response}")
         return response.get('data', {})
     
     async def remove_reaction(self, message_guid: str, chat_guid: str = None) -> Dict[str, Any]:
@@ -234,8 +234,8 @@ class BlueBubblesClient:
         
         payload = self._add_api_method_to_payload(payload)
         
-        print(f"🌐 Removing reaction request to /api/v1/message/react")
-        print(f"🌐 Payload: {payload}")
+        # print(f"🌐 Removing reaction request to /api/v1/message/react")
+        # print(f"🌐 Payload: {payload}")
         
         response = await self._make_request(
             'POST',
@@ -243,7 +243,7 @@ class BlueBubblesClient:
             json=payload,
             headers={'Content-Type': 'application/json'}
         )
-        print(f"🌐 Raw response: {response}")
+        # print(f"🌐 Raw response: {response}")
         return response.get('data', {})
     
     async def send_typing_indicator(self, chat_guid: str, typing: bool = True) -> bool:

@@ -67,7 +67,7 @@ class MainWindow(Adw.ApplicationWindow):
                     Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
                 )
         except Exception as e:
-            print(f"Failed to load CSS in main window: {e}")
+            # print(f"Failed to load CSS in main window: {e}")
     
     def setup_ui(self):
         """Set up the user interface."""
@@ -247,7 +247,7 @@ class MainWindow(Adw.ApplicationWindow):
                         GLib.idle_add(update_ui_again)
                         
                 except Exception as sync_error:
-                    print(f"Background sync failed: {sync_error}")
+                    # print(f"Background sync failed: {sync_error}")
             else:
                 # No cache, fetch from server
                 await self.load_chats_from_server_async(server_url, password)
@@ -408,11 +408,11 @@ class MainWindow(Adw.ApplicationWindow):
         # Check if chat view already exists
         existing_view = self.content_stack.get_child_by_name(chat_view_name)
         if existing_view:
-            print(f"🎯 Chat view already exists, switching to: {chat_view_name}")
+            # print(f"🎯 Chat view already exists, switching to: {chat_view_name}")
             self.content_stack.set_visible_child_name(chat_view_name)
             return
         
-        print(f"🎯 Creating new chat view: {chat_view_name}")
+        # print(f"🎯 Creating new chat view: {chat_view_name}")
         
         # Create a simple chat view for now
         chat_view = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=0)
@@ -590,7 +590,7 @@ class MainWindow(Adw.ApplicationWindow):
             if vadjustment:
                 vadjustment.set_value(vadjustment.get_upper() - vadjustment.get_page_size())
         except Exception as e:
-            print(f"Failed to scroll to bottom: {e}")
+            # print(f"Failed to scroll to bottom: {e}")
     
     def display_messages(self, messages, messages_box: Gtk.Box):
         """Display messages in the messages box."""
@@ -1155,7 +1155,7 @@ class MainWindow(Adw.ApplicationWindow):
                                 # Refresh the message view
                                 GLib.idle_add(self.refresh_current_chat_messages)
                             except Exception as e:
-                                print(f"❌ Error in delayed refresh: {e}")
+                                # print(f"❌ Error in delayed refresh: {e}")
                         
                         # Run sync in thread to avoid blocking
                         import threading
@@ -1228,7 +1228,7 @@ class MainWindow(Adw.ApplicationWindow):
                 )
                 loop.close()
             except Exception as e:
-                print(f"Failed to send typing indicator: {e}")
+                # print(f"Failed to send typing indicator: {e}")
         
         thread = threading.Thread(target=run_async, daemon=True)
         thread.start()
@@ -1242,7 +1242,7 @@ class MainWindow(Adw.ApplicationWindow):
         
         # Get the current chat GUID
         chat_guid = self.current_chat.guid if self.current_chat else None
-        print(f"🎭 UI: Starting send reaction - guid={message_guid}, type={reaction_type}, chat_guid={chat_guid}")
+        # print(f"🎭 UI: Starting send reaction - guid={message_guid}, type={reaction_type}, chat_guid={chat_guid}")
         
         def run_async():
             try:
@@ -1257,15 +1257,15 @@ class MainWindow(Adw.ApplicationWindow):
                 loop.close()
                 
                 if success:
-                    print(f"✅ UI: Reaction sent successfully")
+                    # print(f"✅ UI: Reaction sent successfully")
                     # Refresh messages to show the new reaction
                     GLib.idle_add(self.refresh_current_chat_messages)
                     GLib.idle_add(lambda: self.show_toast("Reaction sent"))
                 else:
-                    print(f"❌ UI: Failed to send reaction")
+                    # print(f"❌ UI: Failed to send reaction")
                     GLib.idle_add(lambda: self.show_toast("Failed to send reaction"))
             except Exception as e:
-                print(f"❌ UI: Exception sending reaction: {e}")
+                # print(f"❌ UI: Exception sending reaction: {e}")
                 GLib.idle_add(lambda: self.show_toast(f"Error: {e}"))
         
         thread = threading.Thread(target=run_async, daemon=True)
@@ -1280,7 +1280,7 @@ class MainWindow(Adw.ApplicationWindow):
         
         # Get the current chat GUID
         chat_guid = self.current_chat.guid if self.current_chat else None
-        print(f"🎭 UI: Starting remove reaction - guid={message_guid}, chat_guid={chat_guid}")
+        # print(f"🎭 UI: Starting remove reaction - guid={message_guid}, chat_guid={chat_guid}")
         
         def run_async():
             try:
@@ -1295,15 +1295,15 @@ class MainWindow(Adw.ApplicationWindow):
                 loop.close()
                 
                 if success:
-                    print(f"✅ UI: Reaction removed successfully")
+                    # print(f"✅ UI: Reaction removed successfully")
                     # Refresh messages to show the reaction removal
                     GLib.idle_add(self.refresh_current_chat_messages)
                     GLib.idle_add(lambda: self.show_toast("Reaction removed"))
                 else:
-                    print(f"❌ UI: Failed to remove reaction")
+                    # print(f"❌ UI: Failed to remove reaction")
                     GLib.idle_add(lambda: self.show_toast("Failed to remove reaction"))
             except Exception as e:
-                print(f"❌ UI: Exception removing reaction: {e}")
+                # print(f"❌ UI: Exception removing reaction: {e}")
                 GLib.idle_add(lambda: self.show_toast(f"Error: {e}"))
         
         thread = threading.Thread(target=run_async, daemon=True)
@@ -1480,7 +1480,7 @@ class MainWindow(Adw.ApplicationWindow):
         """Start background message monitoring."""
         config = self.config_manager.get_server_config()
         if not config['url'] or not config['password']:
-            print("⚠️  Cannot start message monitoring: No server configuration")
+            # print("⚠️  Cannot start message monitoring: No server configuration")
             return
         
         # Add callback for new message notifications
@@ -1496,18 +1496,18 @@ class MainWindow(Adw.ApplicationWindow):
             check_interval
         )
         
-        print("🚀 Message monitoring started in background")
+        # print("🚀 Message monitoring started in background")
     
     def on_new_message_detected(self, chat_guid: str):
         """Called when a new message is detected in a chat."""
-        print(f"📨 New message detected in chat: {chat_guid}")
+        # print(f"📨 New message detected in chat: {chat_guid}")
         
         # Update the UI on the main thread
         def update_ui():
             # Get the updated chat with the new message
             updated_chat = self.chat_service.get_chat_by_guid(chat_guid)
             if not updated_chat:
-                print(f"⚠️  Could not find chat {chat_guid} after new message")
+                # print(f"⚠️  Could not find chat {chat_guid} after new message")
                 return
             
             # Update chat in our local list and move it to the top
@@ -1535,9 +1535,9 @@ class MainWindow(Adw.ApplicationWindow):
         if chat_index >= 0:
             # Remove the old chat from the list
             old_chat = self.chats.pop(chat_index)
-            print(f"📌 Moving chat {updated_chat.display_title} to top (was at index {chat_index})")
+            # print(f"📌 Moving chat {updated_chat.display_title} to top (was at index {chat_index})")
         else:
-            print(f"📌 Adding new chat {updated_chat.display_title} to top")
+            # print(f"📌 Adding new chat {updated_chat.display_title} to top")
         
         # Add the updated chat to the beginning
         self.chats.insert(0, updated_chat)
@@ -1563,12 +1563,12 @@ class MainWindow(Adw.ApplicationWindow):
         if existing_row:
             # Remove the existing row
             self.chat_list.remove(existing_row)
-            print(f"🔄 Removed existing chat row for {updated_chat.display_title}")
+            # print(f"🔄 Removed existing chat row for {updated_chat.display_title}")
         
         # Create a new row with updated data and insert at the top
         new_row = self.create_chat_row(updated_chat)
         self.chat_list.insert(new_row, 0)
-        print(f"⬆️ Moved {updated_chat.display_title} to top of chat list")
+        # print(f"⬆️ Moved {updated_chat.display_title} to top of chat list")
         
         # Update the selection if this was the current chat
         if self.current_chat and self.current_chat.guid == updated_chat.guid:
@@ -1579,24 +1579,24 @@ class MainWindow(Adw.ApplicationWindow):
     def refresh_current_chat_messages(self):
         """Refresh messages for the currently selected chat."""
         if not self.current_chat:
-            print("❌ No current chat selected")
+            # print("❌ No current chat selected")
             return
         
-        print(f"🔄 Refreshing messages for current chat: {self.current_chat.display_title}")
+        # print(f"🔄 Refreshing messages for current chat: {self.current_chat.display_title}")
         
         # Reload messages from cache (they should already be updated by the background task)
         messages = self.chat_service.get_cached_chat_messages(self.current_chat.guid, limit=50)
-        print(f"📥 Retrieved {len(messages)} messages from cache")
+        # print(f"📥 Retrieved {len(messages)} messages from cache")
         
         # Update the message list using the correct chat view name
         chat_view_name = f"chat_{self.current_chat.guid}"
         chat_view = self.content_stack.get_child_by_name(chat_view_name)
-        print(f"🎯 Looking for chat view: {chat_view_name}")
-        print(f"🎯 Chat view found: {chat_view is not None}")
+        # print(f"🎯 Looking for chat view: {chat_view_name}")
+        # print(f"🎯 Chat view found: {chat_view is not None}")
         
         if chat_view:
             has_messages_box = hasattr(chat_view, 'messages_box')
-            print(f"📦 Chat view has messages_box: {has_messages_box}")
+            # print(f"📦 Chat view has messages_box: {has_messages_box}")
             
             if has_messages_box:
                 # Add new messages efficiently
@@ -1606,13 +1606,13 @@ class MainWindow(Adw.ApplicationWindow):
                 if hasattr(chat_view, 'messages_area'):
                     GLib.idle_add(self.scroll_to_bottom, chat_view.messages_area)
             else:
-                print("❌ Chat view missing messages_box attribute")
+                # print("❌ Chat view missing messages_box attribute")
         else:
-            print("❌ No chat view found in content stack")
+            # print("❌ No chat view found in content stack")
     
     def add_new_messages_to_chat(self, messages_box, new_messages):
         """Efficiently add new messages to the chat without clearing everything."""
-        print(f"🔍 Checking for new messages to add. Total messages from cache: {len(new_messages)}")
+        # print(f"🔍 Checking for new messages to add. Total messages from cache: {len(new_messages)}")
         
     # Ignore reaction-only events; they will be reflected as badges on their parent messages
         new_messages = [m for m in new_messages if not self.is_reaction_event(m)]
@@ -1625,24 +1625,24 @@ class MainWindow(Adw.ApplicationWindow):
             child_count += 1
             if hasattr(child, 'message_guid'):
                 existing_guids.add(child.message_guid)
-                print(f"🔍 Found existing message: {child.message_guid}")
+                # print(f"🔍 Found existing message: {child.message_guid}")
             else:
-                print(f"🔍 Found child without message_guid: {type(child)}")
+                # print(f"🔍 Found child without message_guid: {type(child)}")
             child = child.get_next_sibling()
         
-        print(f"🔍 Currently displayed widgets: {child_count}, with message GUIDs: {len(existing_guids)}")
+        # print(f"🔍 Currently displayed widgets: {child_count}, with message GUIDs: {len(existing_guids)}")
         
         # Find truly new messages
         messages_to_add = []
         for message in new_messages:
             if message.guid not in existing_guids:
                 messages_to_add.append(message)
-                print(f"🔍 New message found: {message.guid} - {message.text[:50] if message.text else 'No text'}...")
+                # print(f"🔍 New message found: {message.guid} - {message.text[:50] if message.text else 'No text'}...")
             else:
-                print(f"🔍 Message already displayed: {message.guid}")
+                # print(f"🔍 Message already displayed: {message.guid}")
         
         if messages_to_add:
-            print(f"➕ Adding {len(messages_to_add)} new messages to chat")
+            # print(f"➕ Adding {len(messages_to_add)} new messages to chat")
             
             # Sort by date to maintain chronological order
             messages_to_add.sort(key=lambda m: m.date_created)
@@ -1653,9 +1653,9 @@ class MainWindow(Adw.ApplicationWindow):
                 # Store the message GUID for future reference
                 message_widget.message_guid = message.guid
                 messages_box.append(message_widget)
-                print(f"➕ Added message widget for: {message.guid}")
+                # print(f"➕ Added message widget for: {message.guid}")
         else:
-            print("ℹ️  No new messages to add to current chat")
+            # print("ℹ️  No new messages to add to current chat")
 
         # After adding/confirming messages, update reaction badges for all visible messages
         # to reflect any recent reaction changes.
@@ -1694,7 +1694,7 @@ class MainWindow(Adw.ApplicationWindow):
     
     def on_window_destroy(self, window):
         """Called when the window is being destroyed."""
-        print("🛑 Window destroying, stopping message monitoring...")
+        # print("🛑 Window destroying, stopping message monitoring...")
         
         # Stop message monitoring
         self.chat_service.stop_message_checking()

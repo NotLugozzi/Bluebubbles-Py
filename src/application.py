@@ -60,7 +60,7 @@ class BlueBubblesApplication(Adw.Application):
                     Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
                 )
         except Exception as e:
-            print(f"Failed to load CSS: {e}")
+            # print(f"Failed to load CSS: {e}")
         
     def on_activate(self, app):
         """Called when the application is activated."""
