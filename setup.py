@@ -46,5 +46,6 @@ setup(
     data_files=[
         ('share/applications', ['com.github.bluebubbles.client.desktop']),
         ('share/metainfo', ['com.github.bluebubbles.client.metainfo.xml']),
+        ('share/icons/hicolor/scalable/apps', ['icons/com.github.bluebubbles.client.svg']),
     ],
 )

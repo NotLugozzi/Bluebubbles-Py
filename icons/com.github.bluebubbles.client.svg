@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="128" height="128" viewBox="0 0 128 128" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#007AFF;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0051D5;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background circle -->
+  <circle cx="64" cy="64" r="60" fill="url(#gradient)" stroke="#0051D5" stroke-width="2"/>
+  
+  <!-- Chat bubble 1 (main) -->
+  <path d="M25 45 Q25 35 35 35 L75 35 Q85 35 85 45 L85 65 Q85 75 75 75 L45 75 L35 85 L35 75 Q25 75 25 65 Z" 
+        fill="white" opacity="0.9"/>
+  
+  <!-- Chat bubble 2 (overlay) -->
+  <path d="M43 55 Q43 50 48 50 L88 50 Q93 50 93 55 L93 70 Q93 75 88 75 L63 75 L58 82 L58 75 Q43 75 43 70 Z" 
+        fill="white" opacity="0.7"/>
+  
+  <!-- Message lines in first bubble -->
+  <rect x="35" y="45" width="35" height="3" rx="1.5" fill="#007AFF" opacity="0.6"/>
+  <rect x="35" y="52" width="25" height="3" rx="1.5" fill="#007AFF" opacity="0.6"/>
+  
+  <!-- Message lines in second bubble -->
+  <rect x="53" y="60" width="25" height="3" rx="1.5" fill="#007AFF" opacity="0.4"/>
+  <rect x="53" y="67" width="15" height="3" rx="1.5" fill="#007AFF" opacity="0.4"/>
+</svg>

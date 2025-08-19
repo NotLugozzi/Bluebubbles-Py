@@ -5,5 +5,7 @@ include *.desktop
 include *.metainfo.xml
 recursive-include src *.py
 recursive-include src *.css
+recursive-include icons *.svg
+recursive-include icons *.png
 recursive-exclude src __pycache__
 recursive-exclude src *.pyc

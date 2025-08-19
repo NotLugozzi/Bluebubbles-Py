@@ -105,6 +105,7 @@ modules:
       - cp -r src ${FLATPAK_DEST}/lib/python3.12/site-packages/
       - install -Dm644 com.github.bluebubbles.client.desktop ${FLATPAK_DEST}/share/applications/com.github.bluebubbles.client.desktop
       - install -Dm644 com.github.bluebubbles.client.metainfo.xml ${FLATPAK_DEST}/share/metainfo/com.github.bluebubbles.client.metainfo.xml
+      - install -Dm644 icons/com.github.bluebubbles.client.svg ${FLATPAK_DEST}/share/icons/hicolor/scalable/apps/com.github.bluebubbles.client.svg || true
     sources:
       - type: dir
         path: .
