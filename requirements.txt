@@ -2,3 +2,4 @@ pygobject
 requests
 toml
 aiohttp
+Pillow

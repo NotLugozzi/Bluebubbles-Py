@@ -10,6 +10,7 @@ gi.require_version('Adw', '1')
 from gi.repository import Gtk, Adw, GLib, Gio, GObject, Gdk
 import asyncio
 import threading
+import os
 from datetime import datetime
 from pathlib import Path
 from ..api.client import BlueBubblesClient, BlueBubblesAPIError
@@ -67,7 +68,30 @@ class MainWindow(Adw.ApplicationWindow):
                     Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION
                 )
         except Exception as e:
-            # print(f"Failed to load CSS in main window: {e}")
+            pass  # Silently handle CSS loading errors
+    
+    def load_image_from_data(self, image_data: bytes, size: int = 40) -> Gtk.Image:
+        """Load image data into a Gtk.Image widget."""
+        try:
+            # Create a GBytes object from the image data
+            gbytes = GLib.Bytes.new(image_data)
+            
+            # Create a texture from the bytes
+            texture = Gdk.Texture.new_from_bytes(gbytes)
+            
+            # Create the image widget
+            image = Gtk.Image.new_from_paintable(texture)
+            image.set_pixel_size(size)
+            image.add_css_class("circular")
+            
+            return image
+        except Exception as e:
+            # Fallback to default icon on error
+            image = Gtk.Image()
+            image.set_from_icon_name("person-symbolic")
+            image.set_pixel_size(size)
+            image.add_css_class("circular")
+            return image
     
     def setup_ui(self):
         """Set up the user interface."""
@@ -134,7 +158,7 @@ class MainWindow(Adw.ApplicationWindow):
         
         # Placeholder when no chat is selected
         placeholder = Adw.StatusPage()
-        placeholder.set_icon_name("chat-symbolic")
+        placeholder.set_icon_name("mail-send-symbolic")
         placeholder.set_title("Welcome to BlueBubbles")
         placeholder.set_description("Select a chat to start messaging")
         self.content_stack.add_named(placeholder, "placeholder")
@@ -247,7 +271,7 @@ class MainWindow(Adw.ApplicationWindow):
                         GLib.idle_add(update_ui_again)
                         
                 except Exception as sync_error:
-                    # print(f"Background sync failed: {sync_error}")
+                    pass  # Silently handle background sync errors
             else:
                 # No cache, fetch from server
                 await self.load_chats_from_server_async(server_url, password)
@@ -308,7 +332,7 @@ class MainWindow(Adw.ApplicationWindow):
         main_box.set_margin_top(8)
         main_box.set_margin_bottom(8)
         
-        # Avatar placeholder (could be enhanced with actual avatars later)
+        # Avatar (will be loaded asynchronously)
         avatar = Gtk.Image()
         if chat.is_group_chat:
             avatar.set_from_icon_name("group-symbolic")
@@ -317,6 +341,9 @@ class MainWindow(Adw.ApplicationWindow):
         avatar.add_css_class("circular")
         avatar.set_pixel_size(40)
         main_box.append(avatar)
+        
+        # Load avatar asynchronously
+        self.load_chat_avatar_async(avatar, chat)
         
         # Content area
         content_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
@@ -391,6 +418,21 @@ class MainWindow(Adw.ApplicationWindow):
             # Older - show date
             return dt.strftime("%m/%d/%y")
     
+    def get_message_receipt_status(self, message):
+        """Get the read receipt status for a message. Returns (status_text, css_class)."""
+        if not message.is_from_me:
+            return "", ""  # Only show receipts for sent messages
+        
+        if message.date_read:
+            # Message has been read - use double checkmark
+            return "✓✓ Read", "read"
+        elif message.date_delivered:
+            # Message has been delivered but not read - use single checkmark
+            return "✓ Delivered", "delivered"
+        else:
+            # Message is still sending or failed - use clock icon
+            return "🕒 Sending...", "sending"
+    
     def on_chat_selected(self, list_box, row):
         """Handle chat selection."""
         if row is None:
@@ -400,6 +442,8 @@ class MainWindow(Adw.ApplicationWindow):
         if chat:
             self.current_chat = chat
             self.load_chat_view(chat)
+            # Mark chat as read when opened
+            self.mark_chat_read_async(chat.guid)
     
     def load_chat_view(self, chat: ChatRecord):
         """Load the chat view for the selected chat."""
@@ -590,7 +634,7 @@ class MainWindow(Adw.ApplicationWindow):
             if vadjustment:
                 vadjustment.set_value(vadjustment.get_upper() - vadjustment.get_page_size())
         except Exception as e:
-            # print(f"Failed to scroll to bottom: {e}")
+            pass  # Silently handle scroll errors
     
     def display_messages(self, messages, messages_box: Gtk.Box):
         """Display messages in the messages box."""
@@ -674,6 +718,23 @@ class MainWindow(Adw.ApplicationWindow):
             text_label.set_selectable(True)
             bubble_event_box.append(text_label)
         
+        # Attachments
+        if hasattr(message, 'attachments') and message.attachments:
+            print(f"DEBUG: Message has {len(message.attachments)} attachments")
+            attachment_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=4)
+            attachment_box.set_margin_top(4)
+            
+            for attachment in message.attachments:
+                print(f"DEBUG: Processing attachment: {attachment}")
+                attachment_widget = self.create_attachment_widget(attachment)
+                attachment_box.append(attachment_widget)
+            
+            bubble_event_box.append(attachment_box)
+        else:
+            # Check the actual value of attachments
+            if hasattr(message, 'attachments'):
+                print(f"DEBUG: Message attachments value: {message.attachments} (type: {type(message.attachments)})")
+        
         # Timestamp and sender info
         info_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         
@@ -693,6 +754,19 @@ class MainWindow(Adw.ApplicationWindow):
         time_label.add_css_class("caption")
         time_label.add_css_class("dim-label")
         info_box.append(time_label)
+        
+        # Read receipt indicators (only for sent messages)
+        if message.is_from_me:
+            receipt_label = Gtk.Label()
+            receipt_status, receipt_class = self.get_message_receipt_status(message)
+            if receipt_status:
+                receipt_label.set_text(receipt_status)
+                receipt_label.add_css_class("caption")
+                receipt_label.add_css_class("read-receipt")
+                if receipt_class:
+                    receipt_label.add_css_class(receipt_class)
+                receipt_label.set_margin_start(4)
+                info_box.append(receipt_label)
         
         # Edit indicator
         if hasattr(message, 'is_edited') and message.is_edited:
@@ -725,6 +799,122 @@ class MainWindow(Adw.ApplicationWindow):
         bubble_event_box.message = message
         
         return message_box
+    
+    def create_attachment_widget(self, attachment) -> Gtk.Widget:
+        """Create a widget for displaying a message attachment."""
+        attachment_container = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        attachment_container.set_margin_top(4)
+        attachment_container.set_margin_bottom(4)
+        
+        # Get file info from metadata or original name
+        file_name = attachment.get('original_roi') or attachment.get('transfer_name', 'Unknown File')
+        file_size = attachment.get('total_bytes', 0)
+        mime_type = attachment.get('mime_type', '')
+        
+        # Icon based on file type
+        icon_widget = Gtk.Image()
+        icon_widget.set_pixel_size(32)
+        
+        if mime_type.startswith('image/'):
+            icon_widget.set_from_icon_name("image-x-generic")
+            attachment_container.add_css_class("attachment-image")
+        elif mime_type.startswith('video/'):
+            icon_widget.set_from_icon_name("video-x-generic")
+            attachment_container.add_css_class("attachment-video")
+        elif mime_type.startswith('audio/'):
+            icon_widget.set_from_icon_name("audio-x-generic")
+            attachment_container.add_css_class("attachment-audio")
+        elif 'pdf' in mime_type:
+            icon_widget.set_from_icon_name("application-pdf")
+            attachment_container.add_css_class("attachment-document")
+        else:
+            icon_widget.set_from_icon_name("text-x-generic")
+            attachment_container.add_css_class("attachment-document")
+        
+        attachment_container.append(icon_widget)
+        
+        # File info
+        info_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=2)
+        
+        # File name
+        name_label = Gtk.Label()
+        name_label.set_text(file_name)
+        name_label.set_halign(Gtk.Align.START)
+        name_label.set_ellipsize(3)  # END
+        name_label.set_max_width_chars(30)
+        name_label.add_css_class("attachment-name")
+        info_box.append(name_label)
+        
+        # File size
+        if file_size > 0:
+            size_label = Gtk.Label()
+            size_str = self.format_file_size(file_size)
+            size_label.set_text(size_str)
+            size_label.set_halign(Gtk.Align.START)
+            size_label.add_css_class("caption")
+            size_label.add_css_class("dim-label")
+            info_box.append(size_label)
+        
+        attachment_container.append(info_box)
+        
+        # Download button
+        download_button = Gtk.Button()
+        download_button.set_icon_name("document-save")
+        download_button.set_tooltip_text("Download attachment")
+        download_button.add_css_class("flat")
+        download_button.connect("clicked", self.on_download_attachment, attachment)
+        
+        attachment_container.append(download_button)
+        
+        # Style the attachment container
+        attachment_container.add_css_class("attachment-widget")
+        
+        return attachment_container
+    
+    def format_file_size(self, bytes_size: int) -> str:
+        """Format file size in human readable format."""
+        if bytes_size < 1024:
+            return f"{bytes_size} B"
+        elif bytes_size < 1024 * 1024:
+            return f"{bytes_size / 1024:.1f} KB"
+        elif bytes_size < 1024 * 1024 * 1024:
+            return f"{bytes_size / (1024 * 1024):.1f} MB"
+        else:
+            return f"{bytes_size / (1024 * 1024 * 1024):.1f} GB"
+    
+    def on_download_attachment(self, button, attachment):
+        """Handle attachment download button click."""
+        # Run download in background to avoid blocking UI
+        def download_async():
+            try:
+                file_path = self.chat_service.get_attachment(attachment['guid'])
+                if file_path and os.path.exists(file_path):
+                    # Open file manager to show the downloaded file
+                    GLib.idle_add(self.show_download_complete, file_path)
+                else:
+                    GLib.idle_add(self.show_error_toast, "Failed to download attachment")
+            except Exception as e:
+                GLib.idle_add(self.show_error_toast, f"Download error: {str(e)}")
+        
+        threading.Thread(target=download_async, daemon=True).start()
+    
+    def show_download_complete(self, file_path: str):
+        """Show a toast notification when download completes."""
+        toast = Adw.Toast()
+        toast.set_title(f"Downloaded to {os.path.dirname(file_path)}")
+        toast.set_timeout(3)
+        
+        if hasattr(self, 'toast_overlay'):
+            self.toast_overlay.add_toast(toast)
+    
+    def show_error_toast(self, message: str):
+        """Show an error toast notification."""
+        toast = Adw.Toast()
+        toast.set_title(message)
+        toast.set_timeout(5)
+        
+        if hasattr(self, 'toast_overlay'):
+            self.toast_overlay.add_toast(toast)
     
     def create_reactions_widget(self, reactions, message_is_from_me) -> Gtk.Widget:
         """Create a widget to display reaction emojis."""
@@ -1155,7 +1345,7 @@ class MainWindow(Adw.ApplicationWindow):
                                 # Refresh the message view
                                 GLib.idle_add(self.refresh_current_chat_messages)
                             except Exception as e:
-                                # print(f"❌ Error in delayed refresh: {e}")
+                                pass  # Silently handle delayed refresh errors
                         
                         # Run sync in thread to avoid blocking
                         import threading
@@ -1228,7 +1418,95 @@ class MainWindow(Adw.ApplicationWindow):
                 )
                 loop.close()
             except Exception as e:
-                # print(f"Failed to send typing indicator: {e}")
+                pass  # Silently handle typing indicator errors
+        
+        thread = threading.Thread(target=run_async, daemon=True)
+        thread.start()
+    
+    def load_chat_avatar_async(self, image_widget: Gtk.Image, chat: ChatRecord):
+        """Load chat avatar asynchronously."""
+        config = self.get_application().config_manager.get_server_config()
+        if not config['url'] or not config['password']:
+            return
+        
+        def run_async():
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                
+                avatar_data = None
+                
+                if chat.is_group_chat:
+                    # Try to get group chat icon
+                    avatar_data = loop.run_until_complete(
+                        self.chat_service.get_chat_icon(
+                            config['url'], config['password'], chat.guid
+                        )
+                    )
+                else:
+                    # For individual chats, use the first participant's address
+                    participants = chat.participants
+                    if participants and len(participants) > 0:
+                        # Find the participant that's not us
+                        for participant in participants:
+                            # participant is a HandleRecord, use its address
+                            address = participant.address if hasattr(participant, 'address') else str(participant)
+                            if '@' in address or address.startswith('+'):
+                                avatar_data = loop.run_until_complete(
+                                    self.chat_service.get_contact_avatar(
+                                        config['url'], config['password'], address
+                                    )
+                                )
+                                break
+                
+                # If no avatar data, try to generate initials fallback
+                if not avatar_data:
+                    fallback_name = chat.display_title or "Unknown"
+                    avatar_data = self.chat_service.generate_fallback_avatar(fallback_name, 40)
+                
+                loop.close()
+                
+                # Update UI on main thread
+                if avatar_data:
+                    def update_avatar():
+                        try:
+                            # Check if the widget is still valid
+                            if image_widget and not image_widget.get_parent() is None:
+                                new_image = self.load_image_from_data(avatar_data, 40)
+                                # Copy properties from new image to existing widget
+                                paintable = new_image.get_paintable()
+                                if paintable:
+                                    image_widget.set_from_paintable(paintable)
+                        except Exception as e:
+                            pass  # Silently handle UI update errors
+                        return False  # Remove from idle queue
+                    
+                    GLib.idle_add(update_avatar)
+                
+            except Exception as e:
+                pass  # Silently handle avatar loading errors
+        
+        thread = threading.Thread(target=run_async, daemon=True)
+        thread.start()
+    
+    def mark_chat_read_async(self, chat_guid: str):
+        """Mark a chat as read asynchronously."""
+        config = self.get_application().config_manager.get_server_config()
+        if not config['url'] or not config['password']:
+            return
+        
+        def run_async():
+            try:
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                loop.run_until_complete(
+                    self.chat_service.mark_chat_read(
+                        config['url'], config['password'], chat_guid
+                    )
+                )
+                loop.close()
+            except Exception as e:
+                pass  # Silently handle mark read errors
         
         thread = threading.Thread(target=run_async, daemon=True)
         thread.start()
@@ -1537,7 +1815,7 @@ class MainWindow(Adw.ApplicationWindow):
             old_chat = self.chats.pop(chat_index)
             # print(f"📌 Moving chat {updated_chat.display_title} to top (was at index {chat_index})")
         else:
-            # print(f"📌 Adding new chat {updated_chat.display_title} to top")
+            pass  # Silently handle adding new chat to top
         
         # Add the updated chat to the beginning
         self.chats.insert(0, updated_chat)
@@ -1606,9 +1884,9 @@ class MainWindow(Adw.ApplicationWindow):
                 if hasattr(chat_view, 'messages_area'):
                     GLib.idle_add(self.scroll_to_bottom, chat_view.messages_area)
             else:
-                # print("❌ Chat view missing messages_box attribute")
+                pass  # Silently handle missing messages_box
         else:
-            # print("❌ No chat view found in content stack")
+            pass  # Silently handle missing chat view
     
     def add_new_messages_to_chat(self, messages_box, new_messages):
         """Efficiently add new messages to the chat without clearing everything."""
@@ -1625,9 +1903,10 @@ class MainWindow(Adw.ApplicationWindow):
             child_count += 1
             if hasattr(child, 'message_guid'):
                 existing_guids.add(child.message_guid)
-                # print(f"🔍 Found existing message: {child.message_guid}")
+                # Silently track existing messages
             else:
-                # print(f"🔍 Found child without message_guid: {type(child)}")
+                # Silently handle children without message_guid
+                pass
             child = child.get_next_sibling()
         
         # print(f"🔍 Currently displayed widgets: {child_count}, with message GUIDs: {len(existing_guids)}")
@@ -1639,7 +1918,8 @@ class MainWindow(Adw.ApplicationWindow):
                 messages_to_add.append(message)
                 # print(f"🔍 New message found: {message.guid} - {message.text[:50] if message.text else 'No text'}...")
             else:
-                # print(f"🔍 Message already displayed: {message.guid}")
+                # Silently skip already displayed messages
+                pass
         
         if messages_to_add:
             # print(f"➕ Adding {len(messages_to_add)} new messages to chat")
@@ -1655,7 +1935,8 @@ class MainWindow(Adw.ApplicationWindow):
                 messages_box.append(message_widget)
                 # print(f"➕ Added message widget for: {message.guid}")
         else:
-            # print("ℹ️  No new messages to add to current chat")
+            # Silently handle case where no new messages need to be added
+            pass
 
         # After adding/confirming messages, update reaction badges for all visible messages
         # to reflect any recent reaction changes.

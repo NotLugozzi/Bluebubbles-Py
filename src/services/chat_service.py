@@ -10,6 +10,8 @@ from ..api.client import BlueBubblesClient, BlueBubblesAPIError
 from ..db.manager import DatabaseManager
 from ..db.models import ChatRecord, MessageRecord
 from ..config.manager import ConfigManager
+from .avatar_cache import AvatarCache
+from .attachment_cache import AttachmentCache
 
 class ChatService:
     """Service for managing chat data synchronization."""
@@ -19,6 +21,8 @@ class ChatService:
         self.config_manager = config_manager
         self._message_check_task = None
         self._message_check_thread = None
+        self.avatar_cache = AvatarCache()
+        self.attachment_cache = AttachmentCache()
         self._stop_message_check = False
         self._message_check_callbacks = []
     
@@ -192,6 +196,7 @@ class ChatService:
                 except Exception as sync_err:
                     # Non-fatal; background monitor may still pick it up
                     # print(f"⚠️  Failed to sync messages after reaction: {sync_err}")
+                    pass
             return True
         except Exception as e:
             # print(f"❌ Error sending reaction: {e}")
@@ -212,6 +217,7 @@ class ChatService:
                     await self.sync_chat_messages(server_url, password, chat_guid, limit=50)
                 except Exception as sync_err:
                     # print(f"⚠️  Failed to sync messages after removing reaction: {sync_err}")
+                    pass
             return True
         except Exception as e:
             # print(f"❌ Error removing reaction: {e}")
@@ -318,6 +324,7 @@ class ChatService:
                                                 callback(chat.guid)
                                             except Exception as e:
                                                 # print(f"❌ Error in message callback: {e}")
+                                                pass
                         
                         except Exception as e:
                             # Don't # print errors for individual chats as it can be spammy
@@ -340,8 +347,10 @@ class ChatService:
                 loop.run_until_complete(message_check_loop())
             except asyncio.CancelledError:
                 # print("🛑 Message checking task cancelled")
+                pass
             except Exception as e:
                 # print(f"❌ Error in message checking thread: {e}")
+                pass
             finally:
                 loop.close()
         
@@ -365,3 +374,51 @@ class ChatService:
         
         self._message_check_task = None
         self._message_check_thread = None
+    
+    async def get_contact_avatar(self, server_url: str, password: str, address: str) -> Optional[bytes]:
+        """Get contact avatar from server or cache."""
+        try:
+            api_method = self.config_manager.get_api_method()
+            async with BlueBubblesClient(server_url, password, api_method) as client:
+                return await self.avatar_cache.get_avatar(client, address, is_group=False)
+        except Exception as e:
+            # Silently handle avatar fetch errors
+            return None
+    
+    async def get_chat_icon(self, server_url: str, password: str, chat_guid: str) -> Optional[bytes]:
+        """Get group chat icon from server or cache."""
+        try:
+            api_method = self.config_manager.get_api_method()
+            async with BlueBubblesClient(server_url, password, api_method) as client:
+                return await self.avatar_cache.get_avatar(client, chat_guid, is_group=True)
+        except Exception as e:
+            # Silently handle avatar fetch errors
+            return None
+    
+    def generate_fallback_avatar(self, name: str, size: int = 40) -> Optional[bytes]:
+        """Generate a fallback avatar with initials."""
+        return self.avatar_cache.generate_initials_avatar(name, size)
+    
+    async def mark_chat_read(self, server_url: str, password: str, chat_guid: str) -> bool:
+        """Mark a chat as read."""
+        try:
+            api_method = self.config_manager.get_api_method()
+            async with BlueBubblesClient(server_url, password, api_method) as client:
+                return await client.mark_chat_read(chat_guid)
+        except Exception as e:
+            # Silently handle mark read errors
+            return False
+    
+    async def get_attachment(self, server_url: str, password: str, attachment_guid: str) -> Optional[bytes]:
+        """Get attachment data from server or cache."""
+        try:
+            api_method = self.config_manager.get_api_method()
+            async with BlueBubblesClient(server_url, password, api_method) as client:
+                return await self.attachment_cache.get_attachment(client, attachment_guid)
+        except Exception as e:
+            # Silently handle attachment fetch errors
+            return None
+    
+    def get_attachment_metadata(self, attachment_guid: str) -> Optional[Dict[str, Any]]:
+        """Get cached attachment metadata."""
+        return self.attachment_cache.get_cached_metadata(attachment_guid)

@@ -110,10 +110,10 @@ class BlueBubblesClient:
     async def get_chat_messages(self, chat_guid: str, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
         """Get messages for a specific chat."""
         endpoint = f'/api/v1/chat/{chat_guid}/message'
-        params = f'&limit={limit}&offset={offset}&with=handle&sort=DESC'
-        url = self._build_url(endpoint) + params
+        # Include attachment data in the response
+        params = f'?limit={limit}&offset={offset}&with=handle,attachment&sort=DESC'
         
-        response = await self._make_request('GET', endpoint + f'?limit={limit}&offset={offset}&with=handle&sort=DESC')
+        response = await self._make_request('GET', endpoint + params)
         return response.get('data', [])
     
     async def send_message(self, chat_guid: str, message: str) -> Dict[str, Any]:
@@ -295,6 +295,75 @@ class BlueBubblesClient:
             headers={'Content-Type': 'application/json'}
         )
         return response.get('data', {})
+    
+    async def get_contact_avatar(self, address: str) -> bytes:
+        """Get contact avatar/profile picture."""
+        response = await self._make_request(
+            'GET',
+            f'/api/v1/contact/{address}',
+            params={'password': self.password}
+        )
+        
+        # The contact endpoint returns contact info including base64 avatar
+        contact_data = response.get('data', {})
+        avatar_b64 = contact_data.get('avatar')
+        
+        if avatar_b64:
+            import base64
+            return base64.b64decode(avatar_b64)
+        return None
+    
+    async def get_chat_icon(self, chat_guid: str) -> bytes:
+        """Get group chat icon."""
+        try:
+            # This endpoint returns the raw image data
+            async with self.session.get(
+                f"{self.base_url}/api/v1/chat/{chat_guid}/icon",
+                params={'password': self.password}
+            ) as response:
+                if response.status == 200:
+                    return await response.read()
+                return None
+        except Exception:
+            return None
+    
+    async def mark_chat_read(self, chat_guid: str) -> bool:
+        """Mark a chat as read."""
+        try:
+            await self._make_request(
+                'POST',
+                f'/api/v1/chat/{chat_guid}/read',
+                params={'password': self.password}
+            )
+            return True
+        except BlueBubblesAPIError:
+            return False
+
+    async def get_attachment(self, attachment_guid: str) -> bytes:
+        """Download attachment binary data."""
+        try:
+            # This endpoint returns the raw attachment data
+            async with self.session.get(
+                f"{self.server_url}/api/v1/attachment/{attachment_guid}/download",
+                params={'password': self.password}
+            ) as response:
+                if response.status == 200:
+                    return await response.read()
+                return None
+        except Exception:
+            return None
+
+    async def get_attachment_info(self, attachment_guid: str) -> Dict[str, Any]:
+        """Get attachment metadata."""
+        try:
+            response = await self._make_request(
+                'GET',
+                f'/api/v1/attachment/{attachment_guid}',
+                params={'password': self.password}
+            )
+            return response.get('data', {})
+        except BlueBubblesAPIError:
+            return {}
 
 class BlueBubblesAPIError(Exception):
     """Exception raised for BlueBubbles API errors."""

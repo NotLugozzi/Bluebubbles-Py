@@ -93,6 +93,26 @@
     font-size: 0.85em;
 }
 
+/* Read receipt styling */
+.read-receipt {
+    font-size: 0.75em;
+    opacity: 0.8;
+    color: @accent_color;
+}
+
+.read-receipt.delivered {
+    color: @success_color;
+}
+
+.read-receipt.read {
+    color: @accent_color;
+    font-weight: 600;
+}
+
+.read-receipt.sending {
+    color: @warning_color;
+}
+
 /* Typing indicator styling */
 .typing-indicator {
     opacity: 0.7;
@@ -128,3 +148,46 @@ label.warning {
     font-family: monospace;
     font-size: 0.9em;
 }
+
+/* Attachment widget styling */
+.attachment-widget {
+    background-color: #f6f6f6;
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    padding: 8px;
+    margin: 2px 0;
+}
+
+.attachment-widget:hover {
+    background-color: #eeeeee;
+}
+
+.attachment-name {
+    font-weight: 500;
+}
+
+.attachment-image {
+    border-left: 3px solid #3584e4;
+}
+
+.attachment-video {
+    border-left: 3px solid #9141ac;
+}
+
+.attachment-audio {
+    border-left: 3px solid #26a269;
+}
+
+.attachment-document {
+    border-left: 3px solid #e66100;
+}
+
+/* Download button in attachments */
+/*
+.attachment-widget button.flat {
+    margin-left: auto;
+    min-width: 32px;
+    min-height: 32px;
+    border-radius: 50%;
+}
+*/

@@ -47,7 +47,7 @@ class ConfigManager:
             with open(self.config_file, 'w', encoding='utf-8') as f:
                 toml.dump(self._config_data, f)
         except IOError as e:
-            # print(f"Error saving config: {e}")
+            pass  # Silently handle config save errors
     
     def get(self, key: str, default: Any = None) -> Any:
         """Get a configuration value."""
