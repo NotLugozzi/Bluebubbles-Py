@@ -1,0 +1,130 @@
+/* BlueBubbles GTK App Styles */
+
+/* Message bubbles */
+.message-bubble-sent {
+    border-radius: 18px;
+    padding: 8px 12px;
+    margin: 2px;
+    background-color: @accent_bg_color;
+    color: @accent_fg_color;
+}
+
+.message-bubble-received {
+    border-radius: 18px;
+    padding: 8px 12px;
+    margin: 2px;
+    background-color: alpha(@theme_fg_color, 0.08);
+    color: @theme_fg_color;
+}
+
+/* Message interaction hover effects */
+.message-bubble-sent:hover,
+.message-bubble-received:hover {
+    opacity: 0.9;
+}
+
+/* Reaction emoji styling */
+.reaction-emoji {
+    background-color: alpha(@theme_fg_color, 0.06);
+    color: @theme_fg_color;
+    border-radius: 12px;
+    padding: 2px 8px;
+    font-size: 14px;
+    min-height: 20px;
+    border: 1px solid alpha(@borders, 0.3);
+}
+
+/* Chat list styling */
+.chat-list-row {
+    padding: 8px 12px;
+}
+
+.chat-list-row:hover {
+    background-color: alpha(@theme_fg_color, 0.05);
+}
+
+.chat-list-row:selected {
+    background-color: alpha(@accent_bg_color, 0.1);
+}
+
+/* Avatar styling */
+.circular {
+    border-radius: 50%;
+}
+
+/* Utility classes */
+.error {
+    color: @error_color;
+}
+
+.dim-label {
+    opacity: 0.7;
+}
+
+/* Chat title area */
+.chat-title-area {
+    border-bottom: 1px solid alpha(@borders, 0.2);
+}
+
+/* Input area styling */
+.input-area {
+    border-top: 1px solid alpha(@borders, 0.2);
+}
+
+/* Attachment and send button styling */
+.attachment-button {
+    min-width: 36px;
+    min-height: 36px;
+    border-radius: 18px;
+}
+
+.send-button {
+    min-width: 36px;
+    min-height: 36px;
+    border-radius: 18px;
+}
+
+/* Typography improvements */
+.message-text {
+    line-height: 1.4;
+}
+
+.message-info {
+    font-size: 0.85em;
+}
+
+/* Typing indicator styling */
+.typing-indicator {
+    opacity: 0.7;
+    font-style: italic;
+    color: @accent_color;
+}
+
+/* Dangerous/Warning styles for advanced settings */
+.warning {
+    color: #e5a50a;
+    background-color: rgba(229, 165, 10, 0.1);
+    border-left: 3px solid #e5a50a;
+    padding: 8px;
+    border-radius: 4px;
+}
+
+/* Make dangerous switches more visible */
+row.error {
+    background-color: rgba(237, 51, 59, 0.05);
+    border-left: 3px solid #ed333b;
+}
+
+row.error switch {
+    color: #ed333b;
+}
+
+row.error switch:checked {
+    background-color: #ed333b;
+}
+
+/* Warning text styling */
+label.warning {
+    font-family: monospace;
+    font-size: 0.9em;
+}
